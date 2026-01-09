@@ -1,0 +1,21 @@
+{
+    "name": "lkrff/typefinder",
+    "description": "Type-safe frontend types derived from Laravel API Resources",
+    "type": "library",
+    "license": "MIT",
+    "version": "0.1.0",
+    "autoload": {
+        "psr-4": {
+            "Lkrff\\TypeFinder\\": "src/"
+        }
+    },
+    "require": {},
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Lkrff\\TypeFinder\\TypeFinderServiceProvider"
+            ]
+        }
+    }
+
+}
