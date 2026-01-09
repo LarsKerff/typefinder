@@ -3,11 +3,10 @@
 namespace Lkrff\TypeFinder\Console\Commands;
 
 use Illuminate\Console\Command;
+use Illuminate\Http\Request;
 use Lkrff\TypeFinder\TypeFinder;
 use Lkrff\TypeFinder\Services\TypeGenerator;
 use Lkrff\TypeFinder\Hydration\FakeModelHydrator;
-
-use Illuminate\Http\Request;
 
 final class GenerateTypesCommand extends Command
 {
@@ -37,49 +36,49 @@ final class GenerateTypesCommand extends Command
             $this->line('');
             $this->line("• <info>{$discoveredModel->model}</info>");
 
+            // 1️⃣ Create empty model
             $modelClass = $discoveredModel->model;
             $model = new $modelClass();
 
-            // Hydrate model with fake data and relations
+            // 2️⃣ Hydrate with fake data and relations
             $hydrator->hydrate(
                 $model,
                 $discoveredModel->columns,
                 $discoveredModel->relations
             );
 
+            // 3️⃣ Create resource instance if available
             if ($discoveredModel->resource) {
                 $resourceClass = $discoveredModel->resource;
                 $resource = new $resourceClass($model);
 
-                // Fully resolve resource to plain PHP array
-                $data = ResourceResolver::resolve($resource);
+                // 4️⃣ Safely run resource
+                $data = $resource->toArray(Request::create('/'));
+//                $data = $resource->response()->getData(true);
+//                $data = $resource->resolve();
 
-                // Show output
+                // 5️⃣ Show output
                 $this->line('  Output:');
                 $this->line(
                     collect($data)
                         ->map(fn($v, $k) => sprintf(
                             '    - %s: %s',
                             $k,
-                            is_array($v) ? 'array' : get_debug_type($v)
+                            get_debug_type($v)
                         ))
                         ->implode("\n")
                 );
-
-                // Only generate TypeScript if not dry-run
-                if (!$this->option('dry-run')) {
-                    $generator->generateResource($discoveredModel->model, $data);
-                }
             }
         }
 
         if ($this->option('dry-run')) {
             $this->comment('');
             $this->comment('Dry run enabled — no files written.');
-        } else {
-            $this->info('');
-            $this->info('🛠 TypeScript types generated successfully.');
+            return self::SUCCESS;
         }
+
+        $this->info('');
+        $this->info('🛠 Type generation will be implemented next.');
 
         return self::SUCCESS;
     }
