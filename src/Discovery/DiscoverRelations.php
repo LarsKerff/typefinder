@@ -3,6 +3,7 @@
 namespace Lkrff\TypeFinder\Discovery;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\Relation;
 use Lkrff\TypeFinder\Contracts\DiscoversRelations;
 use Lkrff\TypeFinder\DTO\RelationMetadata;
 use ReflectionClass;
@@ -11,64 +12,58 @@ final class DiscoverRelations implements DiscoversRelations
 {
     public function forModel(string $modelClass): array
     {
-        if (!class_exists($modelClass)) return [];
+        if (!class_exists($modelClass)) {
+            return [];
+        }
 
+        /** @var Model $model */
         $model = new $modelClass;
-        $reflection = new ReflectionClass($model);
+
         $relations = [];
 
-        $file = $reflection->getFileName();
-        $startLine = $reflection->getStartLine();
-        $endLine = $reflection->getEndLine();
+        $reflection = new ReflectionClass($model);
 
-        if (!file_exists($file)) return [];
+        foreach ($reflection->getMethods() as $method) {
+            // Only public, non-static, no-arg methods
+            if (
+                !$method->isPublic() ||
+                $method->isStatic() ||
+                $method->getNumberOfParameters() > 0
+            ) {
+                continue;
+            }
 
-        $lines = file($file);
-        $classCode = implode("", array_slice($lines, $startLine - 1, $endLine - $startLine + 1));
+            $name = $method->getName();
 
-        preg_match_all(
-            '/function\s+([a-zA-Z0-9_]+)\s*\([^\)]*\)\s*\{[^}]*\$this->(hasOne|hasMany|belongsTo|belongsToMany|hasManyThrough|morphTo|morphMany|morphToMany)\s*\(\s*([^\)]+)\)/i',
-            $classCode,
-            $matches,
-            PREG_SET_ORDER
-        );
+            // Skip obvious non-relations
+            if (
+                $name === '__construct' ||
+                str_starts_with($name, 'get') ||
+                str_starts_with($name, 'set') ||
+                str_starts_with($name, 'scope') ||
+                str_starts_with($name, 'boot') ||
+                str_starts_with($name, 'new') ||
+                str_starts_with($name, 'resolve') ||
+                str_starts_with($name, 'to')
+            ) {
+                continue;
+            }
 
-        foreach ($matches as $match) {
-            [, $methodName, $relationType, $relatedClassRaw] = $match;
+            try {
+                $result = $model->$name();
 
-            $relatedClass = $this->resolveRelatedClass($relatedClassRaw, $model);
-            if (!$relatedClass) continue;
-
-            $relations[] = new RelationMetadata(
-                name: $methodName,
-                relatedModel: $relatedClass,
-                type: ucfirst($relationType)
-            );
+                if ($result instanceof Relation) {
+                    $relations[] = new RelationMetadata(
+                        name: $name,
+                        relatedModel: get_class($result->getRelated()),
+                        type: class_basename($result),
+                    );
+                }
+            } catch (\Throwable $e) {
+                // Ignore anything that is not a relation
+            }
         }
 
         return $relations;
-    }
-
-    /**
-     * Resolve the fully-qualified class name of a relation, or null if not resolvable.
-     */
-    private function resolveRelatedClass(string $raw, Model $model): ?string
-    {
-        $raw = trim($raw, " \t\n\r\0\x0B'\"");
-
-        if (class_exists($raw)) {
-            $ref = new ReflectionClass($raw);
-            return $ref->isAbstract() ? null : $raw;
-        }
-
-        $namespace = (new ReflectionClass($model))->getNamespaceName();
-        $fullClass = $namespace . '\\' . $raw;
-
-        if (class_exists($fullClass)) {
-            $ref = new ReflectionClass($fullClass);
-            return $ref->isAbstract() ? null : $fullClass;
-        }
-
-        return null; // cannot resolve
     }
 }

@@ -26,8 +26,6 @@ final class FakeModelHydrator
     ): Model {
         // 1️⃣ Hydrate columns
         foreach ($columns as $column) {
-            if ($column->nullable) continue;
-
             $model->setAttribute(
                 $column->name,
                 $this->fakeValueForColumn($model, $column)
@@ -36,7 +34,7 @@ final class FakeModelHydrator
 
         // 2️⃣ Stop recursion at max depth
         if ($depth >= $maxDepth) return $model;
-
+        
         // 3️⃣ Hydrate relations
         foreach ($relations as $relation) {
             $relatedClass = $relation->relatedModel;
@@ -67,6 +65,8 @@ final class FakeModelHydrator
 
             // Set relation on model
             $model->setRelation($relation->name, $value);
+            // $model->relations[$relation->name] = $value;
+
         }
 
         return $model;

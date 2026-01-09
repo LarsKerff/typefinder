@@ -5,7 +5,7 @@ namespace Lkrff\TypeFinder\Console\Commands;
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
 use Lkrff\TypeFinder\TypeFinder;
-use Lkrff\TypeFinder\Services\TypeGenerator;
+use Lkrff\TypeFinder\Services\TypeScriptGenerator;
 use Lkrff\TypeFinder\Hydration\FakeModelHydrator;
 
 final class GenerateTypesCommand extends Command
@@ -18,7 +18,7 @@ final class GenerateTypesCommand extends Command
     public function handle(
         TypeFinder $typeFinder,
         FakeModelHydrator $hydrator,
-        TypeGenerator $generator
+        TypeScriptGenerator $generator
     ): int {
         $this->info('🔍 Discovering models, resources, and relations…');
 
@@ -29,46 +29,52 @@ final class GenerateTypesCommand extends Command
             return self::SUCCESS;
         }
 
+        // 🔥 Always reset before generating (keeps types in sync)
+        if (! $this->option('dry-run')) {
+            $generator->reset();
+        }
+
         $this->info('');
         $this->info('🧪 Creating fake models and running resources…');
+
+        $typesData = [];
 
         foreach ($discovered as $discoveredModel) {
             $this->line('');
             $this->line("• <info>{$discoveredModel->model}</info>");
 
-            // 1️⃣ Create empty model
             $modelClass = $discoveredModel->model;
             $model = new $modelClass();
 
-            // 2️⃣ Hydrate with fake data and relations
+            // Hydrate model with fake data & relations
             $hydrator->hydrate(
                 $model,
                 $discoveredModel->columns,
                 $discoveredModel->relations
             );
 
-            // 3️⃣ Create resource instance if available
-            if ($discoveredModel->resource) {
-                $resourceClass = $discoveredModel->resource;
-                $resource = new $resourceClass($model);
-
-                // 4️⃣ Safely run resource
-                $data = $resource->toArray(Request::create('/'));
-//                $data = $resource->response()->getData(true);
-//                $data = $resource->resolve();
-
-                // 5️⃣ Show output
-                $this->line('  Output:');
-                $this->line(
-                    collect($data)
-                        ->map(fn($v, $k) => sprintf(
-                            '    - %s: %s',
-                            $k,
-                            get_debug_type($v)
-                        ))
-                        ->implode("\n")
-                );
+            if (! $discoveredModel->resource) {
+                continue;
             }
+
+            $resourceClass = $discoveredModel->resource;
+            $resource = new $resourceClass($model);
+
+            // Fully resolved resource array
+            $data = $resource->toArray(Request::create('/'));
+
+            $this->line('  Output:');
+            $this->line(
+                collect($data)
+                    ->map(fn ($v, $k) => sprintf('    - %s: %s', $k, get_debug_type($v)))
+                    ->implode("\n")
+            );
+
+            // Queue for generation
+            $typesData[] = [
+                'model' => $discoveredModel,
+                'data'  => $data,
+            ];
         }
 
         if ($this->option('dry-run')) {
@@ -78,7 +84,16 @@ final class GenerateTypesCommand extends Command
         }
 
         $this->info('');
-        $this->info('🛠 Type generation will be implemented next.');
+        $this->info('💾 Generating TypeScript types…');
+
+        foreach ($typesData as $item) {
+            $generator->generateFromResolved($item['model'], $item['data']);
+        }
+
+        // Generate index.ts AFTER all files exist
+        $generator->generateIndexFile();
+
+        $this->info("✅ TypeScript types generated in: {$generator->getOutputPath()}");
 
         return self::SUCCESS;
     }
