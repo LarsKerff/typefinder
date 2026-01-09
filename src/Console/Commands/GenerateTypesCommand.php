@@ -40,9 +40,6 @@ final class GenerateTypesCommand extends Command
         $typesData = [];
 
         foreach ($discovered as $discoveredModel) {
-            $this->line('');
-            $this->line("• <info>{$discoveredModel->model}</info>");
-
             $modelClass = $discoveredModel->model;
             $model = new $modelClass();
 
@@ -63,24 +60,11 @@ final class GenerateTypesCommand extends Command
             // Fully resolved resource array
             $data = $resource->toArray(Request::create('/'));
 
-            $this->line('  Output:');
-            $this->line(
-                collect($data)
-                    ->map(fn ($v, $k) => sprintf('    - %s: %s', $k, get_debug_type($v)))
-                    ->implode("\n")
-            );
-
             // Queue for generation
             $typesData[] = [
                 'model' => $discoveredModel,
                 'data'  => $data,
             ];
-        }
-
-        if ($this->option('dry-run')) {
-            $this->comment('');
-            $this->comment('Dry run enabled — no files written.');
-            return self::SUCCESS;
         }
 
         $this->info('');
