@@ -2,20 +2,19 @@
 
 namespace Lkrff\TypeFinder\Services;
 
-use Lkrff\TypeFinder\DTO\Model as DiscoveredModel;
-use Lkrff\TypeFinder\DTO\ColumnDefinition;
+use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\MissingValue;
 use Illuminate\Support\Collection;
-use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Lkrff\TypeFinder\DTO\ColumnDefinition;
+use Lkrff\TypeFinder\DTO\DiscoveredModel;
 
 final class TypeScriptGenerator
 {
     protected string $outputPath;
     protected array $generated = [];
-    protected array $generatedResources = [];
 
-    public function __construct()
+    public function __construct(protected FingerprintService $fingerprintService)
     {
         $this->outputPath = config('typefinder.output_path', resource_path('js/types/generated'));
         if (!is_dir($this->outputPath)) {
@@ -25,13 +24,10 @@ final class TypeScriptGenerator
 
     public function reset(): void
     {
-        if (is_dir($this->outputPath)) {
-            foreach (glob($this->outputPath . '/*.ts') as $file) {
-                @unlink($file);
-            }
+        foreach (glob($this->outputPath . '/*.ts') as $file) {
+            @unlink($file);
         }
         $this->generated = [];
-        $this->generatedResources = [];
     }
 
     public function getOutputPath(): string
@@ -39,17 +35,16 @@ final class TypeScriptGenerator
         return $this->outputPath;
     }
 
-    public function generateFromResolved(DiscoveredModel $model, array $data, array $columns = []): void
+    public function generate(DiscoveredModel $resource): void
     {
-        $interfaceName = class_basename($model->model);
-
-        if (in_array($interfaceName, $this->generated)) {
+        $interfaceName = preg_replace('/Resource$/', '', class_basename($resource->resourceClass));
+        if (in_array($interfaceName, $this->generated, true)) {
             return;
         }
         $this->generated[] = $interfaceName;
 
         $imports = [];
-        $tsInterface = $this->convertToTypeScript($data, $imports, $columns);
+        $tsInterface = $this->convertToTypeScript($resource->resourceTree, $imports, $resource->columns);
 
         $lines = [];
 
@@ -60,25 +55,26 @@ final class TypeScriptGenerator
             $lines[] = "";
         }
 
-        $lines[] = "// Generated from {$model->model}";
+        $lines[] = "// Generated from {$resource->resourceClass}";
         $lines[] = "";
         $lines[] = str_replace('REPLACED_BY_FILENAME', $interfaceName, $tsInterface);
 
-        file_put_contents($this->outputPath . "/{$interfaceName}.ts", implode("\n", $lines));
+        file_put_contents("{$this->outputPath}/{$interfaceName}.ts", implode("\n", $lines));
     }
 
     protected function convertToTypeScript(array $data, array &$imports, array $columns = []): string
     {
         $lines = [];
-        $interfaceName = 'REPLACED_BY_FILENAME';
-        $lines[] = "export interface {$interfaceName} {";
+        $lines[] = "export interface REPLACED_BY_FILENAME {";
 
         foreach ($data as $key => $value) {
-            $optional = $value instanceof MissingValue;
-            $nullable = $this->isColumnNullable($key, $columns);
+            if (is_int($key) || $value instanceof MissingValue) continue;
 
-            $type = $this->phpValueToTsType($value, $optional, $nullable, $imports);
-            $lines[] = "  {$key}" . ($optional ? '?' : '') . ": {$type};";
+            $columnName = $this->fingerprintService->resolve($value)?->column;
+            $nullable = $columnName ? $this->isColumnNullable($columnName, $columns) : false;
+
+            $tsType = $this->phpValueToTsType($value, false, $nullable, $imports);
+            $lines[] = "  {$key}" . ($nullable ? '?' : '') . ": {$tsType};";
         }
 
         $lines[] = "}";
@@ -87,153 +83,66 @@ final class TypeScriptGenerator
 
     protected function phpValueToTsType(mixed $value, bool $optional, bool $nullable, array &$imports): string
     {
-        if ($value instanceof MissingValue) {
-            $value = null;
-        }
+        if ($value instanceof MissingValue) $value = null;
 
-        $type = 'any';
+        if ($value instanceof AnonymousResourceCollection) {
+            $resourceClass = $value->collects;  // TradeResource, AnswerResource, etc
+            if ($resourceClass) {
+                $interfaceName = preg_replace('/Resource$/', '', class_basename($resourceClass));
 
-        // Single JsonResource
-        if ($value instanceof JsonResource) {
-            $type = $this->handleResource($value, false, $imports, $optional);
-        }
-        // AnonymousResourceCollection (or objects that expose a public ->collects)
-        elseif ($value instanceof AnonymousResourceCollection || (is_object($value) && property_exists($value, 'collects'))) {
-            $type = $this->handleAnonymousCollection($value, $imports);
-        }
-        // Generic Collection (from whenLoaded)
-        elseif ($value instanceof Collection) {
-            if ($value->isEmpty()) {
-                $type = 'any[]';
-            } else {
-                $first = $value->first();
-
-                if ($first instanceof JsonResource) {
-                    $type = $this->handleResource($first, true, $imports, $optional);
-                } else {
-                    $itemType = $this->phpValueToTsType($first, false, false, $imports);
-                    $type = "{$itemType}[]";
+                if (!in_array($interfaceName, $imports, true)) {
+                    $imports[] = $interfaceName;
                 }
+
+                return $interfaceName . '[]';
             }
-        }
-        elseif (is_int($value) || is_float($value)) {
-            $type = 'number';
-        }
-        elseif (is_string($value)) {
-            $type = 'string';
-        }
-        elseif (is_bool($value)) {
-            $type = 'boolean';
-        }
-        elseif (is_array($value)) {
-            $type = 'any[]';
+
+            return 'any[]';
         }
 
-        if ($nullable && !str_contains($type, 'null')) {
-            $type .= ' | null';
-        }
+        if ($value instanceof JsonResource) {
+            $resourceClass = get_class($value);                   // StatsResource
+            $interfaceName = preg_replace('/Resource$/', '', class_basename($resourceClass)); // Stats
 
-        return $type;
-    }
-
-    protected function handleAnonymousCollection($collection, array &$imports): string
-    {
-        $collects = $collection->collects ?? null;
-        if ($collects) {
-            $interfaceName = class_basename($collects);
-
-            if (!in_array($interfaceName, $imports)) {
+            if (!in_array($interfaceName, $imports, true)) {
                 $imports[] = $interfaceName;
             }
 
-            if (!isset($this->generatedResources[$collects])) {
-                $this->generatedResources[$collects] = true;
-
-                $firstItem = null;
-                if (method_exists($collection, 'first')) {
-                    $firstItem = $collection->first();
-                }
-
-                if ($firstItem instanceof JsonResource) {
-                    $this->generateResourceFile($interfaceName, $firstItem->toArray(request()));
-                }
-            }
-
-            $type = $interfaceName . '[]';
-
-            if ($collection->isEmpty()) {
-                $type .= ' | null';
-            }
-
-            return $type;
+            return $interfaceName;
         }
 
-        return 'any[]';
+
+        if ($value instanceof Collection) {
+            $first = $value->first();
+            if ($first) {
+                return $this->phpValueToTsType($first, false, false, $imports) . '[]';
+            }
+            return 'any[] | null';
+        }
+
+        $type = match (true) {
+            is_int($value), is_float($value) => 'number',
+            is_string($value) => 'string',
+            is_bool($value) => 'boolean',
+            is_array($value) => 'any[]',
+            default => 'any',
+        };
+
+        return $nullable ? "{$type} | null" : $type;
     }
 
     protected function isColumnNullable(string $columnName, array $columns): bool
     {
         foreach ($columns as $col) {
-            if ($col instanceof ColumnDefinition && $col->name === $columnName) {
-                return $col->nullable;
-            }
+            if ($col instanceof ColumnDefinition && $col->name === $columnName) return $col->nullable;
         }
         return false;
-    }
-
-    protected function handleResource(JsonResource $resource, bool $isCollection, array &$imports, bool $optional): string
-    {
-        $resourceClass = get_class($resource);
-        $interfaceName = class_basename($resourceClass);
-
-        if (!in_array($interfaceName, $imports)) {
-            $imports[] = $interfaceName;
-        }
-
-        if (!isset($this->generatedResources[$resourceClass])) {
-            $this->generatedResources[$resourceClass] = true;
-            $this->generateResourceFile($interfaceName, $resource->toArray(request()));
-        }
-
-        $type = $interfaceName . ($isCollection ? '[]' : '');
-        if ($optional) {
-            $type .= ' | null';
-        }
-
-        return $type;
-    }
-
-    protected function generateResourceFile(string $interfaceName, array $data): void
-    {
-        $imports = [];
-        $ts = $this->convertToTypeScript($data, $imports);
-
-        $lines = [];
-
-        if (!empty($imports)) {
-            foreach ($imports as $import) {
-                $lines[] = "import { {$import} } from './{$import}';";
-            }
-            $lines[] = "";
-        }
-
-        $lines[] = "// Generated from Resource {$interfaceName}";
-        $lines[] = "";
-        $lines[] = str_replace('REPLACED_BY_FILENAME', $interfaceName, $ts);
-
-        file_put_contents($this->outputPath . "/{$interfaceName}.ts", implode("\n", $lines));
     }
 
     public function generateIndexFile(): void
     {
         $files = glob($this->outputPath . '/*.ts');
-        $lines = [];
-
-        foreach ($files as $file) {
-            $base = pathinfo($file, PATHINFO_FILENAME);
-            $lines[] = "export * from './{$base}';";
-        }
-
-        file_put_contents($this->outputPath . '/index.ts', implode("\n", $lines));
+        $lines = array_map(fn($f) => "export * from './" . basename($f, '.ts') . "';", $files);
+        file_put_contents("{$this->outputPath}/index.ts", implode("\n", $lines));
     }
 }

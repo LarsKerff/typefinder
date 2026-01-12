@@ -4,80 +4,83 @@ namespace Lkrff\TypeFinder\Console\Commands;
 
 use Illuminate\Console\Command;
 use Illuminate\Http\Request;
-use Lkrff\TypeFinder\TypeFinder;
+use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\DB;
+use Lkrff\TypeFinder\Services\FingerprintService;
+use Lkrff\TypeFinder\Services\SandboxDatabaseService;
 use Lkrff\TypeFinder\Services\TypeScriptGenerator;
-use Lkrff\TypeFinder\Hydration\FakeModelHydrator;
+use Lkrff\TypeFinder\TypeFinder;
 
 final class GenerateTypesCommand extends Command
 {
     protected $signature = 'typefinder:generate
         {--dry-run : Do not write files, only show what would be generated}';
 
-    protected $description = 'Generate TypeScript types from Laravel API Resources';
+    protected $description = 'Generate TypeScript types from Laravel API Resources using a temporary SQLite database';
 
     public function handle(
         TypeFinder $typeFinder,
-        FakeModelHydrator $hydrator,
-        TypeScriptGenerator $generator
+        SandboxDatabaseService $sandbox,
+        TypeScriptGenerator $generator,
+        FingerprintService $fingerprintService
     ): int {
         $this->info('🔍 Discovering models, resources, and relations…');
 
-        $discovered = $typeFinder->discover();
+        $models = $typeFinder->discover();
 
-        if (empty($discovered)) {
-            $this->warn('No models with matching API Resources found.');
+        if (empty($models)) {
+            $this->warn('No models found.');
             return self::SUCCESS;
         }
 
-        // 🔥 Always reset before generating (keeps types in sync)
         if (! $this->option('dry-run')) {
             $generator->reset();
+            $fingerprintService->reset();
         }
 
-        $this->info('');
-        $this->info('🧪 Creating fake models and running resources…');
+        // Create db and runs migrations
+        $sandbox->createSandbox();
 
-        $typesData = [];
 
-        foreach ($discovered as $discoveredModel) {
-            $modelClass = $discoveredModel->model;
-            $model = new $modelClass();
+        try {
+            $this->info('🗄️  Running migrations in temporary SQLite…');
+            Artisan::call('migrate', ['--database' => 'typefinder_temp', '--force' => true]);
 
-            // Hydrate model with fake data & relations
-            $hydrator->hydrate(
-                $model,
-                $discoveredModel->columns,
-                $discoveredModel->relations
-            );
+            $this->info('🧪 Hydrating models and rendering resources…');
+            foreach ($models as $model) {
+                if (!$model->resourceClass) {
+                    continue;
+                }
+                // only generate resource if resource exists
 
-            if (! $discoveredModel->resource) {
-                continue;
+                    try {
+
+                    } catch (\Throwable $e) {
+                        $this->warn("Failed to render resource for {$model->modelClass}: {$e->getMessage()}");
+                    }
             }
 
-            $resourceClass = $discoveredModel->resource;
-            $resource = new $resourceClass($model);
+            if (empty($resources)) {
+                $this->warn('No resources could be generated.');
+                return self::SUCCESS;
+            }
 
-            // Fully resolved resource array
-            $data = $resource->toArray(Request::create('/'));
+            $this->info('');
+            $this->info('💾 Generating TypeScript types…');
 
-            // Queue for generation
-            $typesData[] = [
-                'model' => $discoveredModel,
-                'data'  => $data,
-            ];
+            foreach ($resources as $res) {
+                $generator->generate($res);
+            }
+
+            $generator->generateIndexFile();
+
+            $this->info("✅ TypeScript types generated in: {$generator->getOutputPath()}");
+
+        } finally {
+            // Reset DB connection
+            DB::setDefaultConnection($originalConnection);
+            $this->info('🔄 Restored original database connection.');
         }
-
-        $this->info('');
-        $this->info('💾 Generating TypeScript types…');
-
-        foreach ($typesData as $item) {
-            $generator->generateFromResolved($item['model'], $item['data']);
-        }
-
-        // Generate index.ts AFTER all files exist
-        $generator->generateIndexFile();
-
-        $this->info("✅ TypeScript types generated in: {$generator->getOutputPath()}");
 
         return self::SUCCESS;
     }

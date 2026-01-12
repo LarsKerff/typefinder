@@ -6,12 +6,11 @@ use Illuminate\Support\ServiceProvider;
 use Lkrff\TypeFinder\Console\Commands\GenerateTypesCommand;
 use Lkrff\TypeFinder\Contracts\DiscoversModels;
 use Lkrff\TypeFinder\Contracts\DiscoversRelations;
-use Lkrff\TypeFinder\Contracts\DiscoversResources;
 use Lkrff\TypeFinder\Contracts\DiscoversSchema;
 use Lkrff\TypeFinder\Discovery\DiscoverModels;
 use Lkrff\TypeFinder\Discovery\DiscoverRelations;
-use Lkrff\TypeFinder\Discovery\DiscoverResources;
 use Lkrff\TypeFinder\Discovery\DiscoverSchema;
+use Lkrff\TypeFinder\Services\FingerprintService;
 
 class TypeFinderServiceProvider extends ServiceProvider
 {
@@ -19,9 +18,9 @@ class TypeFinderServiceProvider extends ServiceProvider
     {
         // Bind interfaces to concrete classes
         $this->app->bind(DiscoversModels::class, DiscoverModels::class);
-        $this->app->bind(DiscoversResources::class, DiscoverResources::class);
         $this->app->bind(DiscoversSchema::class, DiscoverSchema::class);
         $this->app->bind(DiscoversRelations::class, DiscoverRelations::class);
+        $this->app->singleton(FingerprintService::class);
 
         // Register the command only for Artisan (avoid loading in web requests)
         if ($this->app->runningInConsole()) {
