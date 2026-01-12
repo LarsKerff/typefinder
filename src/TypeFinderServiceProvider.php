@@ -20,7 +20,7 @@ class TypeFinderServiceProvider extends ServiceProvider
         $this->app->bind(DiscoversModels::class, DiscoverModels::class);
         $this->app->bind(DiscoversSchema::class, DiscoverSchema::class);
         $this->app->bind(DiscoversRelations::class, DiscoverRelations::class);
-        $this->app->singleton(FingerprintService::class);
+        // $this->app->singleton(FingerprintService::class);
 
         // Register the command only for Artisan (avoid loading in web requests)
         if ($this->app->runningInConsole()) {

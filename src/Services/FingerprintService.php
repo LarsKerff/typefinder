@@ -3,88 +3,54 @@
 namespace Lkrff\TypeFinder\Services;
 
 use Lkrff\TypeFinder\DTO\Fingerprint;
+use Illuminate\Support\Str;
 
 final class FingerprintService
 {
-    /**
-     * @var array<string, Fingerprint> keyed by "ModelClass.column"
-     */
-    private array $fingerprints = [];
+    /** @var array<string, Fingerprint> */
+    private array $map = [];
 
     /**
-     * Register a fingerprint for a model column.
-     * Only keeps one per (modelClass, column), updates nullable if needed.
+     * Create a new fingerprint for a model column
      */
-    public function register(
-        string $modelClass,
+    public function make(
+        string $model,
         string $column,
-        bool $nullable,
-        mixed $value
-    ): void {
-        $key = "$modelClass.$column";
+        string $type,
+        bool $nullable
+    ): string {
+        $value = "TF::{$model}::{$column}::" . Str::uuid();
 
-        if (!isset($this->fingerprints[$key])) {
-            $this->fingerprints[$key] = new Fingerprint(
-                modelClass: $modelClass,
-                column: $column,
-                nullable: $nullable,
-                value: $value
-            );
-        } else {
-            // If any occurrence is nullable, mark column as nullable
-            if ($nullable && !$this->fingerprints[$key]->nullable) {
-                $this->fingerprints[$key]->nullable = true;
-            }
-        }
+        $fingerprint = new Fingerprint(
+            value: $value,
+            model: $model,
+            column: $column,
+            type: $type,
+            nullable: $nullable
+        );
+
+        $this->map[$value] = $fingerprint;
+
+        return $value;
     }
 
     /**
-     * Resolve a runtime value back to its column.
+     * Resolve a fingerprint string to the DTO
      */
     public function resolve(mixed $value): ?Fingerprint
     {
-        foreach ($this->fingerprints as $fp) {
-            if ($fp->value === $value) {
-                return $fp;
-            }
+        if (is_string($value) && isset($this->map[$value])) {
+            return $this->map[$value];
         }
 
         return null;
     }
 
     /**
-     * Was this column ever null?
-     */
-    public function isNullable(string $modelClass, string $column): bool
-    {
-        $key = "$modelClass.$column";
-
-        return $this->fingerprints[$key]->nullable ?? false;
-    }
-
-    /**
-     * Did this column ever exist?
-     */
-    public function hasColumn(string $modelClass, string $column): bool
-    {
-        return isset($this->fingerprints["$modelClass.$column"]);
-    }
-
-    /**
-     * Return all fingerprints as a plain array.
-     *
-     * @return Fingerprint[]
+     * Optional: get all fingerprints (useful for debugging)
      */
     public function all(): array
     {
-        return array_values($this->fingerprints);
-    }
-
-    /**
-     * Reset all fingerprints.
-     */
-    public function reset(): void
-    {
-        $this->fingerprints = [];
+        return $this->map;
     }
 }

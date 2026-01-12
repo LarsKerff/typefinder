@@ -2,12 +2,9 @@
 
 namespace Lkrff\TypeFinder\Services;
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\DB;
-use Lkrff\TypeFinder\Discovery\DiscoveredModel;
 
 final class SandboxDatabaseService
 {
@@ -24,6 +21,7 @@ final class SandboxDatabaseService
     public function createSandbox(): void
     {
         $this->bootDatabase();
+        $this->disableForeignKeys(); // disable FKs for sandbox
         $this->runMigrations();
     }
 
@@ -32,21 +30,32 @@ final class SandboxDatabaseService
      */
     private function bootDatabase(): void
     {
-        if (! file_exists($this->dbPath)) {
+        if (!file_exists($this->dbPath)) {
             touch($this->dbPath);
         }
 
         Config::set('database.default', 'typefinder');
-
         Config::set('database.connections.typefinder', [
             'driver' => 'sqlite',
             'database' => $this->dbPath,
             'prefix' => '',
-            'foreign_key_constraints' => true,
+            'foreign_key_constraints' => false, // <- turn off here
         ]);
 
         DB::purge('typefinder');
         DB::reconnect('typefinder');
+
+        // Ensure FK off for this connection
+        DB::connection('typefinder')->getPdo()->exec('PRAGMA foreign_keys = OFF;');
+    }
+
+
+    /**
+     * Disable foreign key constraints for sandbox inserts
+     */
+    private function disableForeignKeys(): void
+    {
+        DB::connection('typefinder')->getPdo()->exec('PRAGMA foreign_keys = OFF;');
     }
 
     /**

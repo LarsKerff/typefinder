@@ -5,9 +5,10 @@ namespace Lkrff\TypeFinder\DTO;
 final class Fingerprint
 {
     public function __construct(
-        public string $modelClass,
+        public string $value,
+        public string $model,
         public string $column,
+        public string $type,
         public bool $nullable,
-        public mixed $value
     ) {}
 }

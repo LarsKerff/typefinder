@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
 use Lkrff\TypeFinder\Services\FingerprintService;
 use Lkrff\TypeFinder\Services\SandboxDatabaseService;
+use Lkrff\TypeFinder\Services\SeederService;
 use Lkrff\TypeFinder\Services\TypeScriptGenerator;
 use Lkrff\TypeFinder\TypeFinder;
 
@@ -22,7 +23,8 @@ final class GenerateTypesCommand extends Command
         TypeFinder $typeFinder,
         SandboxDatabaseService $sandbox,
         TypeScriptGenerator $generator,
-        FingerprintService $fingerprintService
+        FingerprintService $fingerprintService,
+        SeederService $seeder,
     ): int {
         $this->info('🔍 Discovering models, resources, and relations…');
 
@@ -35,31 +37,32 @@ final class GenerateTypesCommand extends Command
 
         if (! $this->option('dry-run')) {
             $generator->reset();
-            $fingerprintService->reset();
+            // $fingerprintService->reset();
         }
 
         // Create db and runs migrations
         $sandbox->createSandbox();
 
-
+        
         try {
-            $this->info('🗄️  Running migrations in temporary SQLite…');
-            Artisan::call('migrate', ['--database' => 'typefinder_temp', '--force' => true]);
+      
 
             $this->info('🧪 Hydrating models and rendering resources…');
             foreach ($models as $model) {
-                if (!$model->resourceClass) {
+                if (empty($model->table)) {
                     continue;
                 }
-                // only generate resource if resource exists
+                
+                try {
+                $seeder->seed($model);
+                } catch(Exception $e) {
+                    $this->error('Failed to seed model: ' . $model->modelClass . ' - ' . $e->getMessage());
+                    continue;
+                }
 
-                    try {
-
-                    } catch (\Throwable $e) {
-                        $this->warn("Failed to render resource for {$model->modelClass}: {$e->getMessage()}");
-                    }
+                $this->info('Seeded: ' . $model->modelClass);
             }
-
+            dd('Stop');
             if (empty($resources)) {
                 $this->warn('No resources could be generated.');
                 return self::SUCCESS;
@@ -78,7 +81,7 @@ final class GenerateTypesCommand extends Command
 
         } finally {
             // Reset DB connection
-            DB::setDefaultConnection($originalConnection);
+            // DB::setDefaultConnection($originalConnection);
             $this->info('🔄 Restored original database connection.');
         }
 
