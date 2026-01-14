@@ -6,14 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 use Lkrff\TypeFinder\Contracts\DiscoversModels;
 use Lkrff\TypeFinder\Contracts\DiscoversRelations;
 use Lkrff\TypeFinder\Contracts\DiscoversSchema;
+use Lkrff\TypeFinder\DTO\ColumnDefinition;
 use Lkrff\TypeFinder\DTO\DiscoveredModel;
 
-final class TypeFinder
+final class ModelRegistryBuilder
 {
     public function __construct(
         protected DiscoversModels $models,
         protected DiscoversSchema $schema,
         protected DiscoversRelations $relations,
+        protected TypeRegistry $registry, // inject registry
     ) {}
 
     /**
@@ -27,23 +29,24 @@ final class TypeFinder
             ->all();
     }
 
-    /**
-     * @param class-string<Model> $modelClass
-     */
     protected function enrichModel(string $modelClass): DiscoveredModel
     {
-        /** @var Model $model */
         $model = new $modelClass();
+        $table = $model->getTable();
 
         return new DiscoveredModel(
             modelClass: $modelClass,
-            table: $model->getTable(),
+            table: $table,
             columns: $this->schema->forModel($model),
             relations: $this->relations->forModel($modelClass),
-            casts: $model->getCasts(),
             resourceClass: $this->resolveResourceClass($modelClass)
         );
+
+//        $this->registry->registerModel($discovered);
+//
+//        return $discovered;
     }
+
 
     /**
      * Resolve the Resource class for a model without instantiating it.

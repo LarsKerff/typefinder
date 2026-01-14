@@ -9,8 +9,13 @@ final class DiscoveredModel
         public string $table,
         public array $columns = [],
         public array $relations = [],
-        public array $casts = [],
         public ?string $resourceClass = null,
-        public ?array $resourceTree = null
+//        public ?array $resourceTree = null
     ) {}
+
+    public function column(string $name): ?ColumnDefinition
+    {
+        return collect($this->columns)->firstWhere('name', $name);
+    }
+
 }

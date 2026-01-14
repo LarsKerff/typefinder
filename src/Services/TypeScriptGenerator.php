@@ -14,7 +14,7 @@ final class TypeScriptGenerator
     protected string $outputPath;
     protected array $generated = [];
 
-    public function __construct(protected FingerprintService $fingerprintService)
+    public function __construct()
     {
         $this->outputPath = config('typefinder.output_path', resource_path('js/types/generated'));
         if (!is_dir($this->outputPath)) {

@@ -16,21 +16,19 @@ final class SandboxDatabaseService
     }
 
     /**
-     * Create database and run migrations
+     * Create database and run migrations.
      */
     public function createSandbox(): void
     {
         $this->bootDatabase();
-        $this->disableForeignKeys(); // disable FKs for sandbox
+        $this->disableForeignKeys();
         $this->runMigrations();
+        $this->truncateAllTables();
     }
 
-    /**
-     * Create & configure sqlite database.
-     */
     private function bootDatabase(): void
     {
-        if (!file_exists($this->dbPath)) {
+        if (! file_exists($this->dbPath)) {
             touch($this->dbPath);
         }
 
@@ -39,28 +37,20 @@ final class SandboxDatabaseService
             'driver' => 'sqlite',
             'database' => $this->dbPath,
             'prefix' => '',
-            'foreign_key_constraints' => false, // <- turn off here
+            'foreign_key_constraints' => false,
         ]);
 
         DB::purge('typefinder');
         DB::reconnect('typefinder');
 
-        // Ensure FK off for this connection
         DB::connection('typefinder')->getPdo()->exec('PRAGMA foreign_keys = OFF;');
     }
 
-
-    /**
-     * Disable foreign key constraints for sandbox inserts
-     */
     private function disableForeignKeys(): void
     {
         DB::connection('typefinder')->getPdo()->exec('PRAGMA foreign_keys = OFF;');
     }
 
-    /**
-     * Run all migrations against the sandbox DB.
-     */
     private function runMigrations(): void
     {
         Artisan::call('migrate:fresh', [
@@ -69,13 +59,26 @@ final class SandboxDatabaseService
         ]);
     }
 
-    /**
-     * Clean up temp DB if desired.
-     */
     public function destroy(): void
     {
         if (file_exists($this->dbPath)) {
             unlink($this->dbPath);
         }
     }
+
+    /**
+     * Truncate all tables in the sandbox DB to remove seeds from migrations.
+     */
+    private function truncateAllTables(): void
+    {
+        $connection = DB::connection('typefinder');
+
+        // Get all user tables (skip SQLite system tables)
+        $tables = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
+
+        foreach ($tables as $table) {
+            $connection->table($table->name)->truncate();
+        }
+    }
 }
+

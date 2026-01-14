@@ -3,14 +3,11 @@
 namespace Lkrff\TypeFinder\Console\Commands;
 
 use Illuminate\Console\Command;
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Artisan;
-use Illuminate\Support\Facades\DB;
-use Lkrff\TypeFinder\Services\FingerprintService;
 use Lkrff\TypeFinder\Services\SandboxDatabaseService;
 use Lkrff\TypeFinder\Services\SeederService;
 use Lkrff\TypeFinder\Services\TypeScriptGenerator;
-use Lkrff\TypeFinder\TypeFinder;
+use Lkrff\TypeFinder\ModelRegistryBuilder;
+use Exception;
 
 final class GenerateTypesCommand extends Command
 {
@@ -20,15 +17,20 @@ final class GenerateTypesCommand extends Command
     protected $description = 'Generate TypeScript types from Laravel API Resources using a temporary SQLite database';
 
     public function handle(
-        TypeFinder $typeFinder,
+        ModelRegistryBuilder $modelRegistryBuilder,
         SandboxDatabaseService $sandbox,
-        TypeScriptGenerator $generator,
-        FingerprintService $fingerprintService,
         SeederService $seeder,
+        TypeScriptGenerator $generator
     ): int {
+        $this->info('🔍 Creating sandbox database and running migrations…');
+
+        // 1️⃣ Create temporary SQLite sandbox (migrations only)
+        $sandbox->createSandbox();
+
         $this->info('🔍 Discovering models, resources, and relations…');
 
-        $models = $typeFinder->discover();
+        // 2️⃣ Discover models and register them
+        $models = $modelRegistryBuilder->discover();
 
         if (empty($models)) {
             $this->warn('No models found.');
@@ -37,52 +39,37 @@ final class GenerateTypesCommand extends Command
 
         if (! $this->option('dry-run')) {
             $generator->reset();
-            // $fingerprintService->reset();
         }
 
-        // Create db and runs migrations
-        $sandbox->createSandbox();
-
-        
         try {
-      
+            $this->info('🧪 Hydrating models and seeding database…');
 
-            $this->info('🧪 Hydrating models and rendering resources…');
             foreach ($models as $model) {
-                if (empty($model->table)) {
-                    continue;
-                }
-                
                 try {
-                $seeder->seed($model);
-                } catch(Exception $e) {
+                    $seeder->seed($model);
+                    $this->info('Seeded: ' . $model->modelClass);
+                } catch (Exception $e) {
                     $this->error('Failed to seed model: ' . $model->modelClass . ' - ' . $e->getMessage());
                     continue;
                 }
-
-                $this->info('Seeded: ' . $model->modelClass);
             }
-            dd('Stop');
-            if (empty($resources)) {
-                $this->warn('No resources could be generated.');
-                return self::SUCCESS;
-            }
-
+//            dd($models[16]);
             $this->info('');
             $this->info('💾 Generating TypeScript types…');
-
-            foreach ($resources as $res) {
-                $generator->generate($res);
-            }
+//
+//            foreach ($models as $model) {
+//                if ($model->resourceClass) {
+//                    $generator->generate($model->resourceClass);
+//                }
+//            }
 
             $generator->generateIndexFile();
 
             $this->info("✅ TypeScript types generated in: {$generator->getOutputPath()}");
 
         } finally {
-            // Reset DB connection
-            // DB::setDefaultConnection($originalConnection);
-            $this->info('🔄 Restored original database connection.');
+            $sandbox->destroy();
+            $this->info('🔄 Sandbox database destroyed and original database connection restored.');
         }
 
         return self::SUCCESS;

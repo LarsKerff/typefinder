@@ -3,63 +3,96 @@
 namespace Lkrff\TypeFinder\Services;
 
 use Illuminate\Database\Eloquent\Model;
-use Lkrff\TypeFinder\DTO\DiscoveredModel;
 use Illuminate\Support\Facades\Schema;
+use Lkrff\TypeFinder\DTO\DiscoveredModel;
+use Lkrff\TypeFinder\DTO\ColumnDefinition;
 
 final class SeederService
 {
-    public function __construct(
-        private FingerprintService $fingerprints
-    ) {}
+    public function __construct() {}
 
     /**
-     * Seed exactly ONE model with fingerprints for every column.
+     * Seed exactly ONE model with valid values for every column.
      */
     public function seed(DiscoveredModel $model): ?Model
     {
-        $class = $model->modelClass;
-        $table = $model->table;
+        $connection = Schema::connection('typefinder');
 
-        // Skip if table doesn't exist
-        if (! Schema::connection('typefinder')->hasTable($table)) {
+        if (! $connection->hasTable($model->table)) {
             return null;
         }
 
         $attributes = [];
 
-        // Fill every column with a fingerprint
         foreach ($model->columns as $column) {
-            $fingerprint = $this->fingerprints->make(
-                $class,
-                $column->name,
-                $column->type,
-                $column->nullable
-            );
-
-            $attributes[$column->name] = $this->castValue($fingerprint, $column->type);
+            $attributes[$column->name] = $this->generateValue($column, $model->table);
         }
 
-        // Create the model row directly
+        $class = $model->modelClass;
+
         /** @var Model $instance */
-        $instance = $class::create($attributes);
+        $instance = new $class;
+        $instance->forceFill($attributes);
+        $instance->save();
 
         return $instance;
     }
 
     /**
-     * Convert fingerprint string into a valid DB value
+     * Generate a valid value for a single column based on its metadata.
      */
-    private function castValue(string $fingerprint, string $dbType): mixed
+    private function generateValue(ColumnDefinition $column, string $table): mixed
     {
-        $hash = abs(crc32($fingerprint));
+        // 1️⃣ Enum value
+        if ($column->enum) {
+            return $column->enum[0]; // pick first enum value
+        }
 
-        return match (true) {
-            str_contains($dbType, 'int') => $hash % 10000, // smaller ints 0–9999
-            str_contains($dbType, 'bool') => true,
-            str_contains($dbType, 'float'),
-            str_contains($dbType, 'double'),
-            str_contains($dbType, 'numeric') => ($hash % 10000) / 10, // 0.0–999.9
-            default => $fingerprint,
+        // 2️⃣ Boolean
+        if ($column->boolean) {
+            return true;
+        }
+
+        // 3️⃣ Numeric range
+        if ($column->range) {
+            [$min, $max] = $column->range;
+            return $min; // just use min value
+        }
+
+        $type = strtolower($column->type);
+
+        // 4️⃣ Fallback by type with newline formatting
+        $value = match (true) {
+            str_contains($type, 'int') => 1,
+
+            str_contains($type, 'float'),
+            str_contains($type, 'double'),
+            str_contains($type, 'numeric') => 0.0,
+
+            str_contains($type, 'json') => [
+                '_tf' => "$table.{$column->name}",
+                'v' => 1,
+            ],
+
+            str_contains($type, 'datetime'),
+            str_contains($type, 'timestamp') => now()->toDateTimeString(),
+
+            str_contains($type, 'date') => now()->toDateString(),
+            str_contains($type, 'time') => now()->toTimeString(),
+
+            str_contains($type, 'text'),
+            str_contains($type, 'varchar'),
+            str_contains($type, 'char'),
+            str_contains($type, 'citext') => ucfirst($column->name),
+
+            default => 'x',
         };
+
+        // Truncate string values if maxLength is defined
+        if (is_string($value) && $column->maxLength) {
+            $value = substr($value, 0, $column->maxLength);
+        }
+
+        return $value;
     }
 }
