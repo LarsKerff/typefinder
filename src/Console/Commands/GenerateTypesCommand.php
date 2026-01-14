@@ -2,6 +2,7 @@
 
 namespace Lkrff\TypeFinder\Console\Commands;
 
+use App\Models\Player;
 use Illuminate\Console\Command;
 use Lkrff\TypeFinder\Services\SandboxDatabaseService;
 use Lkrff\TypeFinder\Services\SeederService;
@@ -53,15 +54,13 @@ final class GenerateTypesCommand extends Command
                     continue;
                 }
             }
-//            dd($models[16]);
+
             $this->info('');
             $this->info('💾 Generating TypeScript types…');
-//
-//            foreach ($models as $model) {
-//                if ($model->resourceClass) {
-//                    $generator->generate($model->resourceClass);
-//                }
-//            }
+
+           foreach ($models as $model) {
+                   $generator->generate($model);
+           }
 
             $generator->generateIndexFile();
 

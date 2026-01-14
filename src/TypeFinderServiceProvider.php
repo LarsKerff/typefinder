@@ -15,7 +15,6 @@ class TypeFinderServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
-        $this->app->singleton(TypeRegistry::class);
         // Bind interfaces to concrete classes
         $this->app->bind(DiscoversModels::class, DiscoverModels::class);
         $this->app->bind(DiscoversSchema::class, DiscoverSchema::class);

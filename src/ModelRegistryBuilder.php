@@ -2,11 +2,9 @@
 
 namespace Lkrff\TypeFinder;
 
-use Illuminate\Database\Eloquent\Model;
 use Lkrff\TypeFinder\Contracts\DiscoversModels;
 use Lkrff\TypeFinder\Contracts\DiscoversRelations;
 use Lkrff\TypeFinder\Contracts\DiscoversSchema;
-use Lkrff\TypeFinder\DTO\ColumnDefinition;
 use Lkrff\TypeFinder\DTO\DiscoveredModel;
 
 final class ModelRegistryBuilder
@@ -14,8 +12,7 @@ final class ModelRegistryBuilder
     public function __construct(
         protected DiscoversModels $models,
         protected DiscoversSchema $schema,
-        protected DiscoversRelations $relations,
-        protected TypeRegistry $registry, // inject registry
+        protected DiscoversRelations $relations
     ) {}
 
     /**

@@ -9,61 +9,80 @@ use Lkrff\TypeFinder\DTO\ColumnDefinition;
 
 final class SeederService
 {
-    public function __construct() {}
+    public function __construct()
+    {
+    }
 
     /**
-     * Seed exactly ONE model with valid values for every column.
+     * Seed TWO rows:
+     *  - id = 1 → fully filled
+     *  - id = 2 → nullable columns = null
      */
-    public function seed(DiscoveredModel $model): ?Model
+    public function seed(DiscoveredModel $model): void
     {
         $connection = Schema::connection('typefinder');
 
-        if (! $connection->hasTable($model->table)) {
-            return null;
-        }
-
-        $attributes = [];
-
-        foreach ($model->columns as $column) {
-            $attributes[$column->name] = $this->generateValue($column, $model->table);
+        if (!$connection->hasTable($model->table)) {
+            return;
         }
 
         $class = $model->modelClass;
 
-        /** @var Model $instance */
-        $instance = new $class;
-        $instance->forceFill($attributes);
-        $instance->save();
+        for ($id = 1; $id <= 2; $id++) {
+            $makeNullablesNull = $id === 2;
 
-        return $instance;
+            $attributes = [];
+
+            foreach ($model->columns as $column) {
+                $attributes[$column->name] = $this->generateValue(
+                    $column,
+                    $model->table,
+                    $makeNullablesNull,
+                    $id
+                );
+            }
+
+            /** @var Model $instance */
+            $instance = new $class;
+            $instance->forceFill($attributes);
+            $instance->save();
+        }
     }
 
     /**
      * Generate a valid value for a single column based on its metadata.
      */
-    private function generateValue(ColumnDefinition $column, string $table): mixed
+    private function generateValue(ColumnDefinition $column, string $table, bool $makeNullablesNull = false, int $id = 1): mixed
     {
+        if ($makeNullablesNull) {
+            if ($column->nullable) {
+                return null;
+            }
+        }
+
         // 1️⃣ Enum value
         if ($column->enum) {
-            return $column->enum[0]; // pick first enum value
+            return $column->enum[$id - 1] ?? $column->enum[0];
         }
 
         // 2️⃣ Boolean
         if ($column->boolean) {
-            return true;
+            return $id % 2 === 0;
         }
 
         // 3️⃣ Numeric range
         if ($column->range) {
             [$min, $max] = $column->range;
-            return $min; // just use min value
+
+            return $id === 1 ? $min : ($max ?? $min + 1);
         }
+
 
         $type = strtolower($column->type);
 
         // 4️⃣ Fallback by type with newline formatting
         $value = match (true) {
-            str_contains($type, 'int') => 1,
+            str_contains($type, 'int') => $id,
 
             str_contains($type, 'float'),
             str_contains($type, 'double'),
@@ -71,8 +90,9 @@ final class SeederService
 
             str_contains($type, 'json') => [
                 '_tf' => "$table.{$column->name}",
-                'v' => 1,
+                'v' => $id,
             ],
+
 
             str_contains($type, 'datetime'),
             str_contains($type, 'timestamp') => now()->toDateTimeString(),
@@ -83,9 +103,9 @@ final class SeederService
             str_contains($type, 'text'),
             str_contains($type, 'varchar'),
             str_contains($type, 'char'),
-            str_contains($type, 'citext') => ucfirst($column->name),
+            str_contains($type, 'citext') => ucfirst($column->name . '_' . $id),
 
-            default => 'x',
+            default => (string) $id,
         };
 
         // Truncate string values if maxLength is defined
