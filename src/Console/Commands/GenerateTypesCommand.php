@@ -46,7 +46,7 @@ final class GenerateTypesCommand extends Command
                 try {
                     $seeder->seed($model);
                     $this->info('Seeded: ' . $model->modelClass);
-                } catch (Exception $e) {
+                } catch (\Exception $e) {
                     $this->error('Failed to seed model: ' . $model->modelClass . ' - ' . $e->getMessage());
                     continue;
                 }
@@ -67,7 +67,7 @@ final class GenerateTypesCommand extends Command
             try {
                 $sandbox->destroy();
                 $this->info('Sandbox destroyed.');
-            } catch (Exception $e) {
+            } catch (\Exception $e) {
                 $this->error('Failed to destroy sandbox: ' . $e->getMessage());
             }
         }

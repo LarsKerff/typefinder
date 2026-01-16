@@ -4,23 +4,24 @@
     "type": "library",
     "license": "MIT",
     "version": "0.1.0-beta.1",
-
+    "authors": [
+        {
+            "name": "Lars Kerff"
+        }
+    ],
     "require": {
         "php": "^8.1",
         "laravel/framework": "^12.0"
     },
-
     "require-dev": {
         "phpstan/phpstan": "^1.11",
         "nunomaduro/larastan": "^2.9"
     },
-
     "autoload": {
         "psr-4": {
             "Lkrff\\TypeFinder\\": "src/"
         }
     },
-
     "extra": {
         "laravel": {
             "providers": [
@@ -28,5 +29,6 @@
             ]
         }
     },
+    "minimum-stability": "dev",
     "prefer-stable": true
 }
