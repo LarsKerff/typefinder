@@ -12,7 +12,7 @@ final class SandboxDatabaseService
 
     public function __construct()
     {
-        $this->dbPath = database_path('typefinder_temp.sqlite');
+        $this->dbPath = ':memory:';
     }
 
     /**
