@@ -58,9 +58,9 @@ final class GenerateTypesCommand extends Command
             $this->info('');
             $this->info('💾 Generating TypeScript types…');
 
-           foreach ($models as $model) {
-                   $generator->generate($model);
-           }
+            foreach ($models as $model) {
+                $generator->generate($model);
+            }
 
             $generator->generateIndexFile();
 
