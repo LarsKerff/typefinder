@@ -1,7 +1,7 @@
 {
     "name": "lkrff/typefinder",
     "description": "Type-safe frontend types derived from Laravel API Resources",
-    "type": "laravel-library",
+    "type": "library",
     "license": "MIT",
     "version": "0.1.0-beta.1",
 
@@ -28,7 +28,5 @@
             ]
         }
     },
-
-    "minimum-stability": "beta",
     "prefer-stable": true
 }
