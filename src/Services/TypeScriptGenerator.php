@@ -161,7 +161,7 @@ final class TypeScriptGenerator
         }
 
         // Enum
-        if ($value instanceof UnitEnum) {
+        if ($value instanceof \UnitEnum) {
             $values = array_column($value::cases(), 'value');
             $type = implode(' | ', array_map(fn($v) => is_string($v) ? "'$v'" : $v, $values));
             return $this->nullable($type, $nullable);
