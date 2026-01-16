@@ -6,6 +6,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\File;
 use Lkrff\TypeFinder\DTO\DiscoveredModel;
+use UnitEnum;
 
 final class TypeScriptGenerator
 {
@@ -21,7 +22,7 @@ final class TypeScriptGenerator
     {
         $this->outputPath = resource_path(config('typefinder.output_path', 'js/types/generated'));
 
-        if (! File::exists($this->outputPath)) {
+        if (!File::exists($this->outputPath)) {
             File::makeDirectory($this->outputPath, 0755, true);
         }
     }
@@ -32,7 +33,8 @@ final class TypeScriptGenerator
     public function generate(DiscoveredModel $model): void
     {
         $resourceClass = $model->resourceClass;
-        if (! $resourceClass) return;
+        if (!$resourceClass)
+            return;
 
         $class = $model->modelClass;
 
@@ -52,18 +54,12 @@ final class TypeScriptGenerator
 
         $fields = [];
         $imports = [];
-        $enums = null;
-        foreach ($model->columns as $column) {
-            if ($column->enum) {
-                $enums = $column->enum;
-            }
-        }
 
         foreach ($fullData as $key => $value) {
             $nullable = array_key_exists($key, $nullData) && $nullData[$key] === null;
-            $optional = ! array_key_exists($key, $nullData);
+            $optional = !array_key_exists($key, $nullData);
 
-            $tsType = $this->phpValueToTs($value, $nullable, $model);
+            $tsType = $this->phpValueToTs($value, $nullable);
 
             if (preg_match('/^([A-Z][A-Za-z0-9_]+)/', $tsType, $m)) {
                 $imports[] = $m[1];
@@ -141,7 +137,7 @@ final class TypeScriptGenerator
     /**
      * Convert any PHP value into TS
      */
-    private function phpValueToTs(mixed $value, bool $nullable, DiscoveredModel $model): string
+    private function phpValueToTs(mixed $value, bool $nullable): string
     {
         // Collection of resources
         if ($value instanceof ResourceCollection) {
@@ -152,7 +148,7 @@ final class TypeScriptGenerator
                 $this->generateFromResource(
                     new $collects($value->resource->first())
                 );
-                return $this->nullable($type."[]", $nullable);
+                return $this->nullable($type . "[]", $nullable);
             }
 
             return $this->nullable('any[]', $nullable);
@@ -166,8 +162,10 @@ final class TypeScriptGenerator
         }
 
         // Enum
-        if (is_object($value) && method_exists($value, 'value')) {
-            return $this->nullable('string', $nullable);
+        if ($value instanceof UnitEnum) {
+            $values = array_column($value::cases(), 'value');
+            $type = implode(' | ', array_map(fn($v) => is_string($v) ? "'$v'" : $v, $values));
+            return $this->nullable($type, $nullable);
         }
 
         // Array: list or object?
@@ -235,7 +233,8 @@ final class TypeScriptGenerator
         $exports = [];
 
         foreach (File::files($this->outputPath) as $file) {
-            if ($file->getFilename() === 'index.ts') continue;
+            if ($file->getFilename() === 'index.ts')
+                continue;
 
             $name = pathinfo($file->getFilename(), PATHINFO_FILENAME);
             $exports[] = "export * from './$name';";
