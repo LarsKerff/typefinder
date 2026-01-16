@@ -10,11 +10,7 @@ use Lkrff\TypeFinder\DTO\DiscoveredModel;
 final class TypeScriptGenerator
 {
     private string $outputPath;
-
-    /** @var array<string, bool> */
     private array $generated = [];
-
-    /** @var string[] */
     private array $usedTypes = [];
 
     public function __construct()
@@ -25,6 +21,7 @@ final class TypeScriptGenerator
             File::makeDirectory($this->outputPath, 0755, true);
         }
     }
+
 
     /**
      * Generate TS for a top-level Resource
