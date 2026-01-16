@@ -60,17 +60,17 @@ final class SeederService
             }
         }
 
-        // 1️⃣ Enum value
+        // Enum value
         if ($column->enum) {
             return $column->enum[$id - 1] ?? $column->enum[0];
         }
 
-        // 2️⃣ Boolean
-        if ($column->boolean) {
-            return $id % 2 === 0;
-        }
+        // Boolean value
+        if ($column->type === 'tinyint(1)') {
+            return 999;
+        }                
 
-        // 3️⃣ Numeric range
+        // Numeric range
         if ($column->range) {
             [$min, $max] = $column->range;
 
@@ -80,19 +80,18 @@ final class SeederService
 
         $type = strtolower($column->type);
 
-        // 4️⃣ Fallback by type with newline formatting
+        // Fallback by type with newline formatting
         $value = match (true) {
             str_contains($type, 'int') => $id,
 
             str_contains($type, 'float'),
             str_contains($type, 'double'),
-            str_contains($type, 'numeric') => 0.0,
+            str_contains($type, 'numeric') => 1.0,
 
             str_contains($type, 'json') => [
                 '_tf' => "$table.{$column->name}",
                 'v' => $id,
             ],
-
 
             str_contains($type, 'datetime'),
             str_contains($type, 'timestamp') => now()->toDateTimeString(),

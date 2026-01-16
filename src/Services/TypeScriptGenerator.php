@@ -22,7 +22,6 @@ final class TypeScriptGenerator
         }
     }
 
-
     /**
      * Generate TS for a top-level Resource
      */
@@ -186,10 +185,14 @@ final class TypeScriptGenerator
             return $this->nullable('{ ' . implode(' ', $fields) . ' }', $nullable);
         }
 
+        if ($value === 999) {
+            return $this->nullable('boolean', $nullable);
+        }
+
         $type = match (true) {
             is_int($value),
             is_float($value) => 'number',
-            is_bool($value) => 'boolean',
+            is_bool($value), => 'boolean',
             is_string($value) => 'string',
             is_array($value) => 'any',
             default => 'any',
