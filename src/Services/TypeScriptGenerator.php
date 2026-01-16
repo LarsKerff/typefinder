@@ -6,7 +6,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\File;
 use Lkrff\TypeFinder\DTO\DiscoveredModel;
-use Lkrff\TypeFinder\Eloquent\TypeFinderModel;
 
 final class TypeScriptGenerator
 {
@@ -15,9 +14,9 @@ final class TypeScriptGenerator
     /** @var string[] */
     private array $usedTypes = [];
 
-    public function __construct(string $outputPath = null)
+    public function __construct()
     {
-        $this->outputPath = $outputPath ?? resource_path('js/types/generated');
+        $this->outputPath = resource_path(config('typefinder.output_path', 'js/types/generated'));
 
         if (!File::exists($this->outputPath)) {
             File::makeDirectory($this->outputPath, 0755, true);
@@ -32,7 +31,6 @@ final class TypeScriptGenerator
         $resourceClass = $model->resourceClass;
         if (! $resourceClass) return;
 
-        /** @var TypeFinderModel $class */
         $class = $model->modelClass;
 
         // Row 1: fully loaded with relations
@@ -50,7 +48,7 @@ final class TypeScriptGenerator
 
         foreach ($fullResource as $key => $value) {
             $inNullRow = array_key_exists($key, $nullsResource);
-
+            
             /** Nullable if second row contains null */
             $isNullable = $inNullRow && $nullsResource[$key] === null;
 
@@ -153,5 +151,10 @@ final class TypeScriptGenerator
         }
 
         File::put($this->outputPath . '/index.ts', implode("\n", $exports));
+    }
+
+    public function getOutputPath(): string
+    {
+        return $this->outputPath;
     }
 }
