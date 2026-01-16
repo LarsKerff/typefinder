@@ -7,7 +7,6 @@ use Lkrff\TypeFinder\Services\SandboxDatabaseService;
 use Lkrff\TypeFinder\Services\SeederService;
 use Lkrff\TypeFinder\Services\TypeScriptGenerator;
 use Lkrff\TypeFinder\ModelRegistryBuilder;
-use Exception;
 
 final class GenerateTypesCommand extends Command
 {

@@ -38,10 +38,6 @@ final class ModelRegistryBuilder
             relations: $this->relations->forModel($modelClass),
             resourceClass: $this->resolveResourceClass($modelClass)
         );
-
-//        $this->registry->registerModel($discovered);
-//
-//        return $discovered;
     }
 
 

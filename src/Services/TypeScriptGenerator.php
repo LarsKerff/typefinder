@@ -6,7 +6,6 @@ use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Http\Resources\Json\ResourceCollection;
 use Illuminate\Support\Facades\File;
 use Lkrff\TypeFinder\DTO\DiscoveredModel;
-use UnitEnum;
 
 final class TypeScriptGenerator
 {

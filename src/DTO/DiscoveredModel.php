@@ -12,10 +12,4 @@ final class DiscoveredModel
         public ?string $resourceClass = null,
 //        public ?array $resourceTree = null
     ) {}
-
-    public function column(string $name): ?ColumnDefinition
-    {
-        return collect($this->columns)->firstWhere('name', $name);
-    }
-
 }
