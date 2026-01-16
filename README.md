@@ -1,7 +1,7 @@
 # TypeFinder _(Beta)_
 
 ⚠️ **Beta version**  
-This package is currently in **beta**. APIs and generated output may change until `v1.0.0`.
+This package is currently in **beta**.
 
 ---
 
@@ -9,7 +9,7 @@ This package is currently in **beta**. APIs and generated output may change unti
 
 **TypeFinder** generates **type-safe TypeScript types** directly from your **Laravel API Resources**.
 
-It inspects real resource output by running your migrations and resolving your resources, ensuring the generated TypeScript types **match reality**, not assumptions.
+It inspects real resource output by running your migrations (in a sandbox) and resolving your resources, ensuring the generated TypeScript types **match reality**, not assumptions.
 
 ---
 
