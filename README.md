@@ -48,10 +48,6 @@ In short, TypeFinder:
 ```bash
 php artisan typefinder:generate
 ```
-#### Dry run
-```bash
-php artisan typefinder:generate --dry-run
-```
 
 ## Example
 
