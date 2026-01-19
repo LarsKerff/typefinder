@@ -163,7 +163,7 @@ final class TypeScriptGenerator
             return $this->nullable($type, $nullable);
         }
 
-        // Array: list or object?
+        // Array: list or object
         if (is_array($value)) {
             // List → Something[]
             if (array_is_list($value)) {

@@ -67,13 +67,13 @@ final class SandboxDatabaseService
     }
 
     /**
-     * Truncate all tables in the sandbox DB to remove seeds from migrations.
+     * Truncate all tables in the sandbox DB to ensure we have an empty DB. (e.g. seeds in migrations)
      */
     private function truncateAllTables(): void
     {
         $connection = DB::connection('typefinder');
 
-        // Get all user tables (skip SQLite system tables)
+        // Get all tables (skip SQLite system tables)
         $tables = $connection->select("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'");
 
         foreach ($tables as $table) {

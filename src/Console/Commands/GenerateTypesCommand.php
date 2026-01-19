@@ -22,7 +22,7 @@ final class GenerateTypesCommand extends Command
     ): int {
         $this->info('Creating sandbox database and running migrations…');
 
-        // Create temporary SQLite sandbox (migrations only)
+        // Create temporary SQLite sandbox and run migrations
         $sandbox->createSandbox();
 
         $this->info('Discovering models, resources, and relations…');
@@ -36,7 +36,6 @@ final class GenerateTypesCommand extends Command
         }
 
         $generator->reset();
-
 
         // Seed models into the sandbox database and generate TypeScript types
         try {
