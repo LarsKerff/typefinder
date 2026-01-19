@@ -13,6 +13,12 @@ It inspects real resource output by running your migrations (in a sandbox) and r
 
 ---
 
+## How to use it
+
+```bash
+php artisan typefinder:generate
+```
+
 ## What does it do?
 
 TypeFinder maps **Laravel API Resources → TypeScript types**, including:
@@ -42,12 +48,6 @@ In short, TypeFinder:
 8. **Generates an `index.ts` barrel export**
 
 ---
-
-## How to run it
-
-```bash
-php artisan typefinder:generate
-```
 
 ## Example
 
